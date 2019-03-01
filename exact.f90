@@ -371,6 +371,8 @@ subroutine hpsi
 
   l0pe = l0p + 2*l0e
 
+!$omp parallel
+!$omp do private(ixp,ixe1,ixe2)
   do ixp = -nx_p,nx_p
     do ixe2 = -nx_e, nx_e
       do ixe1 = -nx_e, nx_e
@@ -387,10 +389,20 @@ subroutine hpsi
       end do
     end do
   end do
+!$omp end do
 
-  htpsi(-nx_e:nx_e,-nx_e:nx_e,-nx_p:nx_p) = htpsi(-nx_e:nx_e,-nx_e:nx_e,-nx_p:nx_p) &
-    + vpot(-nx_e:nx_e,-nx_e:nx_e,-nx_p:nx_p)*tpsi(-nx_e:nx_e,-nx_e:nx_e,-nx_p:nx_p)
+!$omp do private(ixp,ixe1,ixe2)
+  do ixp = -nx_p,nx_p
+    do ixe2 = -nx_e, nx_e
+      do ixe1 = -nx_e, nx_e
+        htpsi(ixe1,ixe2,ixp) = htpsi(ixe1,ixe2,ixp) &
+          + vpot(ixe1,ixe2,ixp)*tpsi(ixe1,ixe2,ixp)
+      end do
+    end do
+  end do
+!$omp end do
 
+!$omp end parallel
 
 end subroutine hpsi
 !===============================================================================
