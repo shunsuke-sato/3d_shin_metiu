@@ -80,8 +80,8 @@ subroutine input
 ! grid parameter
   Lx_p = 0.5d0*(Ldist_m-1d0)
   Lx_e = 25d0
-  nx_p = 9*8
-  nx_e = 25*10
+  nx_p = 9*4
+  nx_e = 25*4
   
   hx_p = Lx_p/nx_p
   hx_e = Lx_e/nx_e
@@ -136,7 +136,7 @@ subroutine initialization
   do ixp = -nx_p,nx_p
     xx_p = hx_p*ixp
 
-    vpot_p(ixp) = 1d0/abs(0.5d0*Ldist_m-xx_p) + 1d0/abs(0.5d0*Ldist_m+xx_p) 
+    vpot_p(ixp) = 2d0/abs(0.5d0*Ldist_m-xx_p) + 2d0/abs(0.5d0*Ldist_m+xx_p) 
 
   end do
 
@@ -147,8 +147,8 @@ subroutine initialization
     do ixe1 = -nx_e,nx_e
       xx_e1 = hx_e*ixe1
 
-      vint_ep(ixe1,ixp) = -erf_x(abs(xx_e1-xx_p)/Rf_m)/Rf_m
-      vint_pe(ixp,ixe1) = -erf_x(abs(xx_e1-xx_p)/Rf_m)/Rf_m
+      vint_ep(ixe1,ixp) = -2d0*erf_x(abs(xx_e1-xx_p)/Rf_m)/Rf_m
+      vint_pe(ixp,ixe1) = -2d0*erf_x(abs(xx_e1-xx_p)/Rf_m)/Rf_m
 
     end do
   end do

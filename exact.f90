@@ -67,7 +67,7 @@ subroutine input
   Rf_m = 4d0
   Rr_m = 4d0
   Rl_m = 4d0
-  Re_m = 5.65d0  ! 5.6d0  5.7d0
+  Re_m = 4d0  ! 5.6d0  5.7d0
   mass_p = 1836d0
 
 
@@ -75,8 +75,8 @@ subroutine input
 ! grid parameter
   Lx_p = 0.5d0*(Ldist_m-1d0)
   Lx_e = 25d0
-  nx_p = 9*8
-  nx_e = 25*10
+  nx_p = 9*4
+  nx_e = 25*4
   
   hx_p = Lx_p/nx_p
   hx_e = Lx_e/nx_e
@@ -109,11 +109,20 @@ subroutine initialization
         xx_e1 = hx_e*ixe1
 
 
-        vpot(ixe1,ixe2,ixp) = 1d0/abs(0.5d0*Ldist_m-xx_p) + 1d0/abs(0.5d0*Ldist_m+xx_p) &
-          -erf_x(abs(xx_e1-xx_p)/Rf_m)/Rf_m &
+!        vpot(ixe1,ixe2,ixp) = 1d0/abs(0.5d0*Ldist_m-xx_p) + 1d0/abs(0.5d0*Ldist_m+xx_p) &
+!          -erf_x(abs(xx_e1-xx_p)/Rf_m)/Rf_m &
+!          -erf_x(abs(xx_e1-0.5d0*Ldist_m)/Rr_m)/Rr_m &
+!          -erf_x(abs(xx_e1+0.5d0*Ldist_m)/Rl_m)/Rl_m &
+!          -erf_x(abs(xx_e2-xx_p)/Rf_m)/Rf_m &
+!          -erf_x(abs(xx_e2-0.5d0*Ldist_m)/Rr_m)/Rr_m &
+!          -erf_x(abs(xx_e2+0.5d0*Ldist_m)/Rl_m)/Rl_m &
+!          +erf_x(abs(xx_e2-xx_e1)/Re_m)/Re_m 
+
+        vpot(ixe1,ixe2,ixp) = 2d0/abs(0.5d0*Ldist_m-xx_p) + 2d0/abs(0.5d0*Ldist_m+xx_p) &
+          -2d0*erf_x(abs(xx_e1-xx_p)/Rf_m)/Rf_m &
           -erf_x(abs(xx_e1-0.5d0*Ldist_m)/Rr_m)/Rr_m &
           -erf_x(abs(xx_e1+0.5d0*Ldist_m)/Rl_m)/Rl_m &
-          -erf_x(abs(xx_e2-xx_p)/Rf_m)/Rf_m &
+          -2d0*erf_x(abs(xx_e2-xx_p)/Rf_m)/Rf_m &
           -erf_x(abs(xx_e2-0.5d0*Ldist_m)/Rr_m)/Rr_m &
           -erf_x(abs(xx_e2+0.5d0*Ldist_m)/Rl_m)/Rl_m &
           +erf_x(abs(xx_e2-xx_e1)/Re_m)/Re_m 
@@ -199,7 +208,7 @@ end subroutine ground_state
 subroutine conjugate_gradient
   use global_variables
   implicit none
-  integer,parameter :: ncg = 300
+  integer,parameter :: ncg = 400
   integer :: icg
   real(8) :: psi(-nx_e:nx_e,-nx_e:nx_e,-nx_p:nx_p)
   real(8) :: xi(-nx_e:nx_e,-nx_e:nx_e,-nx_p:nx_p)
