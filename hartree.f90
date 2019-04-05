@@ -62,17 +62,17 @@ subroutine input
 
   write(*,*)"Start: input"
 ! model parameter
-!  Ldist_m = 19d0
-!  Rf_m = 5d0
-!  Rr_m = 4d0
-!  Rl_m = 3.1d0
-!  Re_m = Rf_m
-
-  Ldist_m = 19d0 
-  Rf_m = 4d0
+  Ldist_m = 19d0
+  Rf_m = 5d0
   Rr_m = 4d0
-  Rl_m = 4d0
-  Re_m = 4d0  ! 5.6d0  5.7d0
+  Rl_m = 3.1d0
+  Re_m = Rf_m
+
+!  Ldist_m = 19d0 
+!  Rf_m = 4d0
+!  Rr_m = 4d0
+!  Rl_m = 4d0
+!  Re_m = 4d0  ! 5.6d0  5.7d0
   mass_p = 1836d0
 
 
@@ -136,7 +136,7 @@ subroutine initialization
   do ixp = -nx_p,nx_p
     xx_p = hx_p*ixp
 
-    vpot_p(ixp) = 2d0/abs(0.5d0*Ldist_m-xx_p) + 2d0/abs(0.5d0*Ldist_m+xx_p) 
+    vpot_p(ixp) = 1d0/abs(0.5d0*Ldist_m-xx_p) + 1d0/abs(0.5d0*Ldist_m+xx_p) 
 
   end do
 
@@ -147,8 +147,8 @@ subroutine initialization
     do ixe1 = -nx_e,nx_e
       xx_e1 = hx_e*ixe1
 
-      vint_ep(ixe1,ixp) = -2d0*erf_x(abs(xx_e1-xx_p)/Rf_m)/Rf_m
-      vint_pe(ixp,ixe1) = -2d0*erf_x(abs(xx_e1-xx_p)/Rf_m)/Rf_m
+      vint_ep(ixe1,ixp) = -1d0*erf_x(abs(xx_e1-xx_p)/Rf_m)/Rf_m
+      vint_pe(ixp,ixe1) = -1d0*erf_x(abs(xx_e1-xx_p)/Rf_m)/Rf_m
 
     end do
   end do
