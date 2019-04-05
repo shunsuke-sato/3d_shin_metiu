@@ -4,6 +4,9 @@ module global_variables
   complex(8),parameter :: zi = (0d0, 1d0)
   real(8),parameter :: pi = 4d0*atan(1d0)
 
+! physical constants
+  real(8),parameter :: fs = 0.024189d0
+
 ! model parameters
   real(8) :: Ldist_m
   real(8) :: Rf_m, Rr_m, Rl_m, Re_m
@@ -23,6 +26,16 @@ module global_variables
   real(8),allocatable :: vint_ep(:,:), vint_pe(:,:)
 
   real(8),allocatable :: rho_e(:), rho_p(:)
+  real(8),allocatable :: xe_l(:), xp_l(:)
+
+  complex(8),allocatable :: zwfn_e(:,:), zwfn_p(:)
+  complex(8),allocatable :: ztpsi_e(:,:),zhtpsi_e(:,:)
+  complex(8),allocatable :: ztpsi_p(:),zhtpsi_p(:)
+
+  integer :: nt
+  real(8) :: Tprop, dt
+  real(8) :: E0, Tpulse, omega0
+
 
   contains
 !    
@@ -53,6 +66,9 @@ program main
   call ground_state
 
   call reduced_density
+
+
+  call time_propagation
 
 end program main
 !-----------------------------------------------------------------------------
@@ -86,6 +102,19 @@ subroutine input
   hx_p = Lx_p/nx_p
   hx_e = Lx_e/nx_e
 
+
+! time propagation
+  dt = 0.02d0
+  Tprop = 40d0*fs
+  nt = aint(Tprop/dt) + 1
+
+  E0 = 0.002d0
+  Tpulse = 20d0*fs
+  omega0 = 0.055d0
+
+
+
+
   write(*,*)"End: input"
 
 end subroutine input
@@ -115,6 +144,18 @@ subroutine initialization
   tpsi_e = 0d0; tpsi_p = 0d0
   allocate(htpsi_e(-nx_e:nx_e,-nx_e:nx_e))
   allocate(htpsi_p(-nx_p:nx_p))
+
+
+  allocate(zwfn_e(-nx_e:nx_e,-nx_e:nx_e))
+  allocate(zwfn_p(-nx_p:nx_p))
+
+  allocate(ztpsi_e(-nx_e-2:nx_e+2,-nx_e-2:nx_e+2))
+  allocate(ztpsi_p(-nx_p-2:nx_p+2))
+  ztpsi_e = 0d0; ztpsi_p = 0d0
+  allocate(zhtpsi_e(-nx_e:nx_e,-nx_e:nx_e))
+  allocate(zhtpsi_p(-nx_p:nx_p))
+
+  allocate(xe_l(-nx_e:nx_e),xp_l(-nx_p:nx_p))
 
 
   do ixe2 = -nx_e,nx_e
@@ -152,6 +193,18 @@ subroutine initialization
 
     end do
   end do
+
+  do ixp = -nx_p,nx_p
+    xx_p = hx_p*ixp
+    xp_l(ixp) = xx_p
+  end do
+
+  do ixe1 = -nx_e,nx_e
+    xx_e1 = hx_e*ixe1
+    xe_l(ixe1) = xx_e1
+  end do
+
+
 
   write(*,*)"End: initialization"
 
@@ -483,5 +536,23 @@ subroutine reduced_density
   close(20)
 
 end subroutine reduced_density
+!-----------------------------------------------------------------------------
+subroutine time_propagation
+  use global_variables
+  implicit none
+  integer :: it
+
+  zwfn_e = wfn_e
+  zwfn_p = wfn_p
+
+
+  do it = 0, nt
+    
+    call dt_evolve(it)
+
+  end do
+
+
+end subroutine time_propagation
 !-----------------------------------------------------------------------------
 !-----------------------------------------------------------------------------
