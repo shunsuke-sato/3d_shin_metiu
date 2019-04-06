@@ -5,7 +5,7 @@ module global_variables
   real(8),parameter :: pi = 4d0*atan(1d0)
 
 ! physical constants
-  real(8),parameter :: fs = 0.024189d0
+  real(8),parameter :: fs = 1d0/0.024189d0
 
 ! model parameters
   real(8) :: Ldist_m
@@ -35,6 +35,7 @@ module global_variables
   integer :: nt
   real(8) :: Tprop, dt
   real(8) :: E0, Tpulse, omega0
+  real(8),allocatable :: Et(:)
 
 
   contains
@@ -545,9 +546,13 @@ subroutine time_propagation
   zwfn_e = wfn_e
   zwfn_p = wfn_p
 
+  call init_laser
+
 
   do it = 0, nt
-    
+    if(mod(it,200)==0)then
+      call output_td_density(it)
+    end if
     call dt_evolve(it)
 
   end do
@@ -555,14 +560,227 @@ subroutine time_propagation
 
 end subroutine time_propagation
 !-----------------------------------------------------------------------------
+subroutine output_td_density(it)
+  use global_variables
+  implicit none
+  integer,intent(in) :: it
+  integer :: ixp, ixe
+  character(256) :: cit, cfilename
+
+  do ixp = -nx_p,nx_p
+    rho_p(ixp) = abs(zwfn_p(ixp))**2
+  end do
+
+  do ixe = -nx_e,nx_e
+    rho_e(ixe) = 2d0*sum(abs(zwfn_e(:,ixe))**2)*hx_e
+  end do
+
+  write(cit,"(I9.9)")it
+  cfilename = trim(cit)//'_rho_e.out'
+
+  open(31,file=cfilename)
+  write(31,"(A,2x,e26.16e3)")'# time=',it*dt/fs
+  do ixe = -nx_e,nx_e
+    write(31,"(999e26.16e3)")xe_l(ixe),rho_e(ixe)
+  end do
+  close(31)
+
+  cfilename = trim(cit)//'_rho_p.out'
+
+  open(31,file=cfilename)
+  write(31,"(A,2x,e26.16e3)")'# time=',it*dt/fs
+  do ixp = -nx_p,nx_p
+    write(31,"(999e26.16e3)")xp_l(ixp),rho_p(ixp)
+  end do
+  close(31)
+
+
+end subroutine output_td_density
+!-----------------------------------------------------------------------------
 ! Propagator with the predictor-corrector method
 subroutine dt_evolve(it)
   use global_variables
   implicit none
   integer,intent(in) :: it
+  complex(8) :: zwfn_e_pc(-nx_e:nx_e,-nx_e:nx_e)
+  complex(8) :: zwfn_p_pc(-nx_p:nx_p)
+  real(8) :: Et_t
 
+! t -> t +dt/2
+  Et_t = Et(it)
+  call calc_Hartree_pot_td
+  call dt_evolve_e(Et_t,dt*0.5d0)
+  call dt_evolve_p(Et_t,dt*0.5d0)
 
+  zwfn_e_pc = zwfn_e
+  zwfn_p_pc = zwfn_p
+
+! t+ dt/2 -> t + dt (predictor step)
+  Et_t = Et(it+1)
+  call calc_Hartree_pot_td
+  call dt_evolve_e(Et_t,dt*0.5d0)
+  call dt_evolve_p(Et_t,dt*0.5d0)
+
+! t+ dt/2 -> t + dt (corrector step)
+  zwfn_e = zwfn_e_pc
+  zwfn_p = zwfn_p_pc
+  Et_t = Et(it+1)
+  call calc_Hartree_pot_td
+  call dt_evolve_e(Et_t,dt*0.5d0)
+  call dt_evolve_p(Et_t,dt*0.5d0)
 
 
 end subroutine dt_evolve
+!-----------------------------------------------------------------------------
+subroutine dt_evolve_e(Et_in,dt_in)
+  use global_variables
+  implicit none
+  real(8),intent(in) :: Et_in, dt_in
+  integer,parameter :: nexp = 4
+  integer :: iexp
+  complex(8) :: zfact
+
+  ztpsi_e(-nx_e:nx_e,-nx_e:nx_e) = zwfn_e(-nx_e:nx_e,-nx_e:nx_e)
+  zfact = 1d0
+  do iexp = 1, nexp
+    zfact = zfact*(-zI*dt_in)/iexp
+    call zhpsi_e(Et_in)
+    zwfn_e = zwfn_e + zfact*zhtpsi_e
+    ztpsi_e(-nx_e:nx_e,-nx_e:nx_e) = zhtpsi_e(-nx_e:nx_e,-nx_e:nx_e)
+  end do
+
+
+end subroutine dt_evolve_e
+!-----------------------------------------------------------------------------
+subroutine dt_evolve_p(Et_in,dt_in)
+  use global_variables
+  implicit none
+  real(8),intent(in) :: Et_in, dt_in
+  integer,parameter :: nexp = 4
+  integer :: iexp
+  complex(8) :: zfact
+
+  ztpsi_p(-nx_p:nx_p) = zwfn_p(-nx_p:nx_p)
+  zfact = 1d0
+  do iexp = 1, nexp
+    zfact = zfact*(-zI*dt_in)/iexp
+    call zhpsi_p(Et_in)
+    zwfn_p = zwfn_p + zfact*zhtpsi_p
+    ztpsi_p(-nx_p:nx_p) = zhtpsi_p(-nx_p:nx_p)
+  end do
+
+
+end subroutine dt_evolve_p
+!-----------------------------------------------------------------------------
+subroutine zhpsi_e(Et_in)
+  use global_variables
+  implicit none
+  real(8),intent(in) :: Et_in
+  real(8),parameter :: c0 = -5d0/2d0, c1 = 4d0/3d0, c2 = -1d0/12d0
+  real(8) :: l0,l1,l2
+  integer :: ixp, ixe1, ixe2
+
+  l0 = -2d0*0.5d0*c0/(hx_e**2)
+  l1 = -0.5d0*c1/(hx_e**2)
+  l2 = -0.5d0*c2/(hx_e**2)
+
+!$omp parallel do private(ixe2,ixe1)
+  do ixe2 = -nx_e, nx_e
+    do ixe1 = -nx_e, nx_e
+
+      zhtpsi_e(ixe1,ixe2) = l0*ztpsi_e(ixe1,ixe2) &
+          +l1*(ztpsi_e(ixe1+1,ixe2)+ztpsi_e(ixe1-1,ixe2) &
+              +ztpsi_e(ixe1,ixe2+1)+ztpsi_e(ixe1,ixe2-1) ) &
+          +l2*(ztpsi_e(ixe1+2,ixe2)+ztpsi_e(ixe1-2,ixe2) &
+              +ztpsi_e(ixe1,ixe2+2)+ztpsi_e(ixe1,ixe2-2) )
+
+    end do
+  end do
+
+!$omp parallel do private(ixe2,ixe1)
+  do ixe2 = -nx_e, nx_e
+    do ixe1 = -nx_e, nx_e
+      zhtpsi_e(ixe1,ixe2) = zhtpsi_e(ixe1,ixe2) &
+        + (vpot_e(ixe1,ixe2)+vh_e(ixe1)+vh_e(ixe2) + Et_in*(xe_l(ixe1)+xe_l(ixe2)))&
+        *ztpsi_e(ixe1,ixe2)
+    end do
+  end do
+
+
+end subroutine zhpsi_e
+!-----------------------------------------------------------------------------
+subroutine zhpsi_p(Et_in)
+  use global_variables
+  implicit none
+  real(8),intent(in) :: Et_in
+  real(8),parameter :: c0 = -5d0/2d0, c1 = 4d0/3d0, c2 = -1d0/12d0
+  real(8) :: l0,l1,l2
+  integer :: ixp
+
+  l0 = -0.5d0*c0/(hx_p**2*mass_p)
+  l1 = -0.5d0*c1/(hx_p**2*mass_p)
+  l2 = -0.5d0*c2/(hx_p**2*mass_p)
+
+  do ixp = -nx_p, nx_p
+
+    zhtpsi_p(ixp) = l0*ztpsi_p(ixp) &
+          +l1*(ztpsi_p(ixp+1)+ztpsi_p(ixp-1)) &
+          +l2*(ztpsi_p(ixp+2)+ztpsi_p(ixp-2)) 
+
+  end do
+
+  do ixp = -nx_p, nx_p
+    zhtpsi_p(ixp) = zhtpsi_p(ixp) &
+      + (vpot_p(ixp)+vh_p(ixp) -xp_l(ixp))*ztpsi_p(ixp)
+  end do
+
+
+end subroutine zhpsi_p
+!-----------------------------------------------------------------------------
+subroutine init_laser
+  use global_variables
+  implicit none
+  real(8) :: tt, xx
+  integer :: it
+
+  allocate(Et(0:nt+1))
+  Et = 0d0
+
+  do it = 0, nt+1
+    tt = dt*it
+    xx = tt - 0.5d0*Tpulse
+    if(abs(xx) < 0.5d0*Tpulse)then
+      Et(it) = E0*cos(pi*xx/Tpulse)**2*sin(omega0*xx)
+    end if
+    
+  end do
+
+
+  open(31,file='laser.out')
+  do it = 0, nt+1
+    write(31,"(999e26.16e3)")dt*it,Et(it)
+  end do
+  close(31)
+
+end subroutine init_laser
+!-----------------------------------------------------------------------------
+subroutine calc_Hartree_pot_td
+  use global_variables
+  implicit none
+  integer :: ixp, ixe
+
+  do ixp = -nx_p,nx_p
+    rho_p(ixp) = abs(zwfn_p(ixp))**2
+  end do
+
+  do ixe = -nx_e,nx_e
+    rho_e(ixe) = 2d0*sum(abs(zwfn_e(:,ixe))**2)*hx_e
+  end do
+
+  vh_e(:) = matmul(vint_ep,rho_p)*hx_p
+  vh_p(:) = matmul(vint_pe,rho_e)*hx_e
+  
+
+
+end subroutine calc_Hartree_pot_td
 !-----------------------------------------------------------------------------
