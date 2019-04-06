@@ -37,6 +37,10 @@ module global_variables
   real(8) :: E0, Tpulse, omega0
   real(8),allocatable :: Et(:)
 
+! bo
+  integer,parameter :: n_bo = 4
+  real(8),allocatable :: wfn_bo(:,:,:,:)
+
 
   contains
 !    
@@ -63,7 +67,7 @@ program main
   call input
   call initialization
 
-
+  call calc_BO_surface
   call ground_state
 
   call reduced_density
@@ -784,3 +788,194 @@ subroutine calc_Hartree_pot_td
 
 end subroutine calc_Hartree_pot_td
 !-----------------------------------------------------------------------------
+subroutine calc_BO_surface
+  use global_variables
+  implicit none
+  integer,parameter :: ncg_bo = 100, nscf = 5
+  integer :: ixp, iscf
+  real(8) :: psi_t(-nx_e:nx_e,-nx_e:nx_e,n_bo)
+  real(8) :: eps_t(n_bo),eps_bo(-nx_p:nx_p,n_bo)
+
+  allocate(wfn_bo(-nx_e:nx_e,-nx_e:nx_e,-nx_p:nx_p,n_bo))
+
+  do ixp = -nx_p, nx_p
+    write(*,*)'ixp/nx_p',ixp,nx_p
+    vh_e(:) = vint_ep(:,ixp)
+    call random_number(psi_t)    
+    do iscf = 1, nscf
+      call cg_bo(psi_t, eps_t, ncg_bo)
+!      call subspace_diag(psi_t, eps_t)
+      call reordering(psi_t, eps_t)
+    end do
+    wfn_bo(:,:,ixp,:)  = psi_t
+    eps_bo(ixp,:) = eps_t(:) + vpot_p(ixp)
+
+  end do
+
+  open(31,file='bo_surface.out')
+  do ixp = -nx_p, nx_p
+    write(31,"(999e26.16e3)")xp_l(ixp),eps_bo(ixp,:)
+  end do
+  close(31)
+
+  stop
+
+
+end subroutine calc_BO_surface
+!-----------------------------------------------------------------------------
+subroutine cg_bo(psi_out, eps_out, ncg)
+  use global_variables
+  implicit none
+  real(8),intent(inout) :: psi_out(-nx_e:nx_e,-nx_e:nx_e,n_bo)
+  real(8),intent(out) :: eps_out(n_bo)
+  integer,intent(in) :: ncg
+
+  real(8),parameter :: res_c = 1d-10
+  integer :: icg
+  integer :: ib,ib2
+  real(8) :: psi(-nx_e:nx_e,-nx_e:nx_e)
+  real(8) :: xi(-nx_e:nx_e,-nx_e:nx_e)
+  real(8) :: phi(-nx_e:nx_e,-nx_e:nx_e)
+  real(8) :: phi_old(-nx_e:nx_e,-nx_e:nx_e)
+  real(8) :: lambda, xixi, xixi_old, gamma
+  real(8) :: ss, aa, bb, theta 
+  real(8) :: psi_t(-nx_e:nx_e,-nx_e:nx_e)
+  integer :: ix1, ix2
+
+  do ib = 1, n_bo
+    psi_t = psi_out(:,:,ib)
+    do ix1 = -nx_e,nx_e
+      do ix2 = -nx_e,nx_e
+        psi(ix1,ix2) = 0.5d0*(psi_t(ix1,ix2)+psi_t(ix2,ix1))
+      end do
+    end do
+    ss = sum(psi**2)*hx_e**2
+    psi = psi/sqrt(ss)
+    do ib2 = 1, ib-1
+      ss = sum(psi*psi_out(:,:,ib2))*hx_e**2
+      psi = psi -ss*psi_out(:,:,ib2)
+    end do
+    ss = sum(psi**2)*hx_e**2
+    psi = psi/sqrt(ss)
+
+
+    tpsi_e(-nx_e:nx_e,-nx_e:nx_e) = psi(-nx_e:nx_e,-nx_e:nx_e)
+    call hpsi_e
+    lambda = sum(psi*htpsi_e)*hx_e**2
+    xi = lambda*psi-htpsi_e
+    do ib2 = 1, ib-1
+      ss = sum(xi*psi_out(:,:,ib2))*hx_e**2
+      xi = xi -ss*psi_out(:,:,ib2)
+    end do
+
+    xixi = sum(xi**2)*hx_e**2
+    xixi_old = xixi
+
+    do icg = 0, ncg
+      
+      if(icg == 0)then
+        gamma = 0d0
+        phi_old = 0d0
+      else
+        gamma = xixi/xixi_old
+        xixi_old = xixi
+      end if
+
+      phi = xi + gamma* phi_old
+      phi_old = phi
+      ss = sum(phi*psi)*hx_e**2
+      phi = phi -ss*psi
+      ss = sum(phi**2)*hx_e**2
+      phi = phi/sqrt(ss)
+
+      bb = 2d0*sum(phi*htpsi_e)*hx_e**2
+      tpsi_e(-nx_e:nx_e,-nx_e:nx_e) = phi(-nx_e:nx_e,-nx_e:nx_e)
+      call hpsi_e
+      aa = sum(phi*htpsi_e)*hx_e**2 -lambda
+      aa = - aa
+      if(aa /= 0d0)then
+        theta = 0.5d0*atan(bb/aa)
+      else
+        theta = 0.25d0*pi
+      end if
+      psi = cos(theta)*psi + sin(theta)*phi
+      psi_t = psi
+      do ix1 = -nx_e,nx_e
+        do ix2 = -nx_e,nx_e
+          psi(ix1,ix2) = 0.5d0*(psi_t(ix1,ix2)+psi_t(ix2,ix1))
+        end do
+      end do
+      
+      ss = sum(psi**2)*hx_e**2
+      psi = psi/sqrt(ss)
+      do ib2 = 1, ib-1
+        ss = sum(psi*psi_out(:,:,ib2))*hx_e**2
+        psi = psi -ss*psi_out(:,:,ib2)
+      end do
+      ss = sum(psi**2)*hx_e**2
+      psi = psi/sqrt(ss)
+      if(icg == ncg)exit
+      
+      tpsi_e(-nx_e:nx_e,-nx_e:nx_e) = psi(-nx_e:nx_e,-nx_e:nx_e)
+      call hpsi_e
+      lambda = sum(psi*htpsi_e)*hx_e**2
+      xi = lambda*psi - htpsi_e
+      do ib2 = 1, ib-1
+        ss = sum(xi*psi_out(:,:,ib2))*hx_e**2
+        xi = xi -ss*psi_out(:,:,ib2)
+      end do
+      
+      xixi = sum(xi**2)*hx_e**2
+
+      if(xixi < res_c)then
+        write(*,*)'break cg_bo'
+        exit
+      end if
+
+
+    end do
+
+    psi_out(:,:,ib) = psi
+    eps_out(ib) = lambda
+
+
+  end do
+
+
+end subroutine cg_bo
+!-----------------------------------------------------------------------------
+subroutine reordering(psi_t, eps_t)
+  use global_variables
+  implicit none
+  real(8),intent(inout) :: psi_t(-nx_e:nx_e,-nx_e:nx_e,n_bo)
+  real(8),intent(inout) :: eps_t(n_bo)
+  real(8) :: psi_tmp(-nx_e:nx_e,-nx_e:nx_e,n_bo)
+  real(8) :: eps_tmp(n_bo)
+  integer :: itable_ib(n_bo), itable_ib_tmp
+
+  integer :: ib, ib2
+
+  
+  do ib = 1, n_bo
+    itable_ib(ib) = ib
+  end do
+
+  do ib = 1, n_bo
+    do ib2 = 2, n_bo
+      if(eps_t(ib2) < eps_t(ib2-1))then
+        itable_ib_tmp = itable_ib(ib2)
+        itable_ib(ib2) = itable_ib(ib2-1)
+        itable_ib(ib2-1) = itable_ib_tmp
+      end if
+    end do
+  end do
+
+
+  psi_tmp = psi_t
+  eps_tmp = eps_t
+  do ib = 1, n_bo
+    psi_t(:,:,ib) = psi_tmp(:,:,itable_ib(ib))
+    eps_t(ib) = eps_tmp(itable_ib(ib))
+  end do
+
+end subroutine reordering
