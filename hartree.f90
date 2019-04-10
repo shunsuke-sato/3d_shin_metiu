@@ -545,22 +545,31 @@ end subroutine reduced_density
 subroutine time_propagation
   use global_variables
   implicit none
+  real(8) :: pop_bo(n_bo), cohe_bo(n_bo,n_bo)
   integer :: it
 
   zwfn_e = wfn_e
   zwfn_p = wfn_p
 
   call init_laser
-
+  
+  open(51,file='BO_pop_coherence.out')
 
   do it = 0, nt
     if(mod(it,200)==0)then
       call output_td_density(it)
     end if
+
+    if(mod(it,10) == 0)then
+      call calc_bo_quantity(pop_bo,cohe_bo)
+      write(51,"(999e26.16e3)")dt*it,pop_bo,cohe_bo(1,3)
+    end if
+
     call dt_evolve(it)
 
   end do
 
+  close(51)
 
 end subroutine time_propagation
 !-----------------------------------------------------------------------------
@@ -818,7 +827,7 @@ subroutine calc_BO_surface
   end do
   close(31)
 
-  stop
+!  stop
 
 
 end subroutine calc_BO_surface
@@ -979,3 +988,45 @@ subroutine reordering(psi_t, eps_t)
   end do
 
 end subroutine reordering
+!-----------------------------------------------------------------------------
+!-----------------------------------------------------------------------------
+!-----------------------------------------------------------------------------
+!-----------------------------------------------------------------------------
+!-----------------------------------------------------------------------------
+!-----------------------------------------------------------------------------
+!-----------------------------------------------------------------------------
+!-----------------------------------------------------------------------------
+subroutine calc_bo_quantity(pop_bo,cohe_bo)
+  use global_variables
+  implicit none
+  real(8),intent(out) :: pop_bo(n_bo), cohe_bo(n_bo,n_bo)
+  complex(8) :: zchi_bo(-nx_p:nx_p,n_bo)
+  integer :: ibo, jbo, ixp
+
+
+  do ixp = -nx_p,nx_p
+
+    do ibo = 1, n_bo
+      zchi_bo(ixp,ibo) = sum(wfn_bo(:,:,ixp,ibo)*zwfn_e)*zwfn_p(ixp)*hx_e**2
+
+    end do
+
+  end do
+
+
+! population
+  do ibo = 1, n_bo
+    pop_bo(ibo) = sum(abs(zchi_bo(:,ibo))**2)*hx_p
+  end do
+
+! coherence
+  do ibo = 1, n_bo
+    do jbo = ibo+1,n_bo
+      cohe_bo(ibo,jbo) = abs(sum(conjg(zchi_bo(:,jbo))*zchi_bo(:,ibo))*hx_p)**2
+      cohe_bo(jbo,ibo) = cohe_bo(ibo,jbo)
+    end do
+  end do
+
+  
+
+end subroutine calc_bo_quantity
