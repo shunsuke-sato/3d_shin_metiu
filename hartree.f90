@@ -744,7 +744,7 @@ subroutine zhpsi_p(Et_in)
 
   do ixp = -nx_p, nx_p
     zhtpsi_p(ixp) = zhtpsi_p(ixp) &
-      + (vpot_p(ixp)+vh_p(ixp) -xp_l(ixp))*ztpsi_p(ixp)
+      + (vpot_p(ixp)+vh_p(ixp) -Et_in*xp_l(ixp))*ztpsi_p(ixp)
   end do
 
 
