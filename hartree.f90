@@ -546,6 +546,7 @@ subroutine time_propagation
   use global_variables
   implicit none
   real(8) :: pop_bo(n_bo), cohe_bo(n_bo,n_bo)
+  real(8) :: Etot_t
   integer :: it
 
   zwfn_e = wfn_e
@@ -554,11 +555,20 @@ subroutine time_propagation
   call init_laser
   
   open(51,file='BO_pop_coherence.out')
+  open(52,file='Etot_t.out')
+
+
 
   do it = 0, nt
     if(mod(it,200)==0)then
       call output_td_density(it)
     end if
+
+    if(mod(it,10)== 0)then
+      call calc_Etot_td(Etot_t,it)
+      write(52,"(999e26.16e3)")it*dt,Etot_t
+    end if
+
 
     if(mod(it,10) == 0)then
       call calc_bo_quantity(pop_bo,cohe_bo)
@@ -570,6 +580,7 @@ subroutine time_propagation
   end do
 
   close(51)
+  close(52)
 
 end subroutine time_propagation
 !-----------------------------------------------------------------------------
@@ -989,6 +1000,29 @@ subroutine reordering(psi_t, eps_t)
 
 end subroutine reordering
 !-----------------------------------------------------------------------------
+subroutine calc_Etot_td(Etot_t,it)
+  use global_variables
+  implicit none
+  real(8),intent(out) :: Etot_t
+  integer,intent(in) :: it
+  real(8) :: Et_t
+
+  Et_t = Et(it)
+  call calc_Hartree_pot_td
+
+  ztpsi_e(-nx_e:nx_e,-nx_e:nx_e) = zwfn_e(-nx_e:nx_e,-nx_e:nx_e)
+  call zhpsi_e(Et_in)
+
+  ztpsi_p(-nx_p:nx_p) = zwfn_p(-nx_p:nx_p)
+  call zhpsi_p(Et_in)
+
+  Etot_t = sum(conjg(zwfn_e)*zhtpsi_e)*hx_e**2 &
+         + sum(conjg(zwfn_p)*zhtpsi_p)*hx_p    &
+         - sum(vh_p*rho_p)*hx_p
+
+  
+
+end subroutine calc_Etot_td
 !-----------------------------------------------------------------------------
 !-----------------------------------------------------------------------------
 !-----------------------------------------------------------------------------
