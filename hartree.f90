@@ -1011,10 +1011,10 @@ subroutine calc_Etot_td(Etot_t,it)
   call calc_Hartree_pot_td
 
   ztpsi_e(-nx_e:nx_e,-nx_e:nx_e) = zwfn_e(-nx_e:nx_e,-nx_e:nx_e)
-  call zhpsi_e(Et_in)
+  call zhpsi_e(Et_t)
 
   ztpsi_p(-nx_p:nx_p) = zwfn_p(-nx_p:nx_p)
-  call zhpsi_p(Et_in)
+  call zhpsi_p(Et_t)
 
   Etot_t = sum(conjg(zwfn_e)*zhtpsi_e)*hx_e**2 &
          + sum(conjg(zwfn_p)*zhtpsi_p)*hx_p    &
