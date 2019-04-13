@@ -562,7 +562,7 @@ subroutine time_propagation
 
     if(mod(it,10) == 0)then
       call calc_bo_quantity(pop_bo,cohe_bo)
-      write(51,"(999e26.16e3)")dt*it,pop_bo,cohe_bo(1,3)
+      write(51,"(999e26.16e3)")dt*it,pop_bo,cohe_bo(1,:)
     end if
 
     call dt_evolve(it)
@@ -996,10 +996,10 @@ end subroutine reordering
 !-----------------------------------------------------------------------------
 !-----------------------------------------------------------------------------
 !-----------------------------------------------------------------------------
-subroutine calc_bo_quantity(pop_bo,cohe_bo)
+subroutine calc_bo_quantity(pop_bo,rho_ovlp_bo)
   use global_variables
   implicit none
-  real(8),intent(out) :: pop_bo(n_bo), cohe_bo(n_bo,n_bo)
+  real(8),intent(out) :: pop_bo(n_bo), rho_ovlp_bo(n_bo,n_bo)
   complex(8) :: zchi_bo(-nx_p:nx_p,n_bo)
   integer :: ibo, jbo, ixp
 
@@ -1022,8 +1022,8 @@ subroutine calc_bo_quantity(pop_bo,cohe_bo)
 ! coherence
   do ibo = 1, n_bo
     do jbo = ibo+1,n_bo
-      cohe_bo(ibo,jbo) = abs(sum(conjg(zchi_bo(:,jbo))*zchi_bo(:,ibo))*hx_p)**2
-      cohe_bo(jbo,ibo) = cohe_bo(ibo,jbo)
+      rho_ovlp_bo(ibo,jbo) = sum(abs(zchi_bo(:,jbo)*zchi_bo(:,ibo))**2)*hx_p
+      rho_ovlp_bo(jbo,ibo) = rho_ovlp_bo(ibo,jbo)
     end do
   end do
 
