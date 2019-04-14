@@ -555,7 +555,7 @@ subroutine time_propagation
   call init_laser
   
   open(51,file='BO_pop_coherence.out')
-  open(52,file='Etot_t.out')
+  open(52,file='Etot_xe_xp_t.out')
 
 
 
@@ -566,7 +566,8 @@ subroutine time_propagation
 
     if(mod(it,10)== 0)then
       call calc_Etot_td(Etot_t,it)
-      write(52,"(999e26.16e3)")it*dt,Etot_t
+      write(52,"(999e26.16e3)")it*dt,Etot_t,sum(rho_e*xe_l)/sum(rho_e) &
+                                           ,sum(rho_p*xp_l)/sum(rho_p)
     end if
 
 
