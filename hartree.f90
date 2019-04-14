@@ -444,6 +444,7 @@ subroutine hpsi_e
   l1 = -0.5d0*c1/(hx_e**2)
   l2 = -0.5d0*c2/(hx_e**2)
 
+!$omp parallel do private(ixe2,ixe1)
   do ixe2 = -nx_e, nx_e
     do ixe1 = -nx_e, nx_e
 
@@ -456,6 +457,7 @@ subroutine hpsi_e
     end do
   end do
 
+!$omp parallel do private(ixe2,ixe1)
   do ixe2 = -nx_e, nx_e
     do ixe1 = -nx_e, nx_e
       htpsi_e(ixe1,ixe2) = htpsi_e(ixe1,ixe2) &
